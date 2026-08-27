@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>Gestion de commande</title>
+
+        <link rel="stylesheet" href="style.css">
+    </head>
+
+    <body>
+        <main class="container">
+            <h1>Gestion de commande</h1>
+
+            <p class="intro">
+            Passez votre commande auprès de notre assistant.
+            </p>
+
+            <form id="order-form">
+                <div class="form-group">
+
+                    <label for="message">
+                        Votre demande
+                    </label>
+
+                    <textarea
+                        id="message"
+                        name="message"
+                        rows="4"
+                        placeholder="Ex : Je voudrais commander 3 ordinateurs portables."
+                        required
+                    ></textarea>
+                </div>
+                <button type="submit">
+                    Passer la commande
+                </button>
+            </form>
+
+            <section class="response-section">
+
+                <h2>Réponse de l'assistant</h2>
+
+                <div id="response">
+                    Votre commande apparaîtra ici.
+                </div>
+
+            </section>
+        </main>
+        <script src="app.js"></script>
+    </body>
+</html>
