@@ -1,26 +1,113 @@
-# ProjetAgentIA-GestionDeCommande
+# ProjetAgentIA - GestionDeCommande
 
-Petit projet de portfolio construit autour d'un cas métier volontairement simple : analyser une commande et choisir une action.
+Petit projet de portfolio construit autour d'un cas métier volontairement simple : analyser une demande de commande et déterminer l'action à effectuer.
+
+Le projet met volontairement en évidence la séparation entre interprétation par le LLM et logique métier déterministe.
+
+
 
 ```text
-HTTP /orders
-    |
-    v
-  Order (validation Pydantic)
-    |
-    v
- OrderService
-    |
-    +--> LLM local (Ollama)
-    |
-    v
- décision contrôlée
-    |
-    +--> REJECT
-    +--> SEND_EMAIL
-    +--> SEND_TO_SUPPLIER
-    +--> manual_review si problème
+   HTTP POST /orders
+       |
+       | { "text": "Je veux 3 lampes à 10€ pièce" } 
+       v  
++----------------------+ 
+| OrderRequest         | 
+| Pydantic             | 
+|                      | 
+| Validation de        | 
+| la requête HTTP      |  
++----------------------+ 
+       | 
+       v  
++----------------------+ 
+| OrderService         | 
+|                      | 
+| process_text()       | 
++----------------------+ 
+        | 
+        v 
++----------------------+ 
+| LLM local            | 
+| Ollama               | 
+|                      |  
+| Interprétation de la | 
+| demande utilisateur  | 
++----------------------+ 
+        | 
+        | données structurées 
+        v 
++----------------------+ 
+| Order                | 
+| Pydantic             | 
+|                      | 
+| Validation des       | 
+| données extraites    | 
++----------------------+ 
+        | 
+        v 
++----------------------+ 
+| Règles métier        | 
+|                      | 
+| total < 20 €         | 
+| -> REJECT            | 
+|                      | 
+| 20 € <= total        | 
+| <= 500 €             | 
+| -> CONFIRM           | 
+|                      | 
+| total > 500 €        | 
+| -> SUPPLIER          | 
++----------------------+ 
+        | 
+        v 
+   Résultat    
 ```
+
+### Principe architectural
+Le LLM n'est pas responsable de la décision métier.
+
+Son rôle est d'interpréter une demande en langage naturel et d'en extraire les informations nécessaires :
+
+```text
+"Je veux 3 lampes à 10€ pièce"
+              |
+              v
+             LLM
+              |
+              v
+{
+  "products": [
+    {
+      "name": "lampe",
+      "unit_price": 10,
+      "quantity": 3
+    }
+  ]
+}
+```
+
+Une fois les données extraites et validées, ce sont les règles Python qui déterminent l'action.
+
+```text
+LLM
+ |
+ | interprète
+ v
+Order
+ |
+ | décision déterministe
+ v
+Business Rules
+ |
+ +--> REJECT_ORDER
+ |
+ +--> SEND_CONFIRMATION_EMAIL
+ |
+ +--> SEND_SUPPLIER_EMAIL
+```
+
+Cette séparation permet de conserver une logique métier prévisible, testable et déterministe, tout en utilisant le LLM pour traiter le langage naturel.
 
 ## Technologies
 
@@ -32,9 +119,7 @@ HTTP /orders
 
 ## LLM choisi
 
-La configuration utilise `qwen2.5:3b-instruct`, un petit modèle disponible via Ollama. 
-Il est adapté au français et à la génération JSON structurée. 
-Le modèle est exécuté localement : aucune clé API OpenAI n'est nécessaire.
+La configuration utilise `qwen2.5:3b-instruct`, un petit modèle disponible via Ollama. Il est adapté au français et à la génération JSON structurée. Le modèle est exécuté localement : aucune clé API OpenAI n'est nécessaire.
 
 ## Installation Windows
 
