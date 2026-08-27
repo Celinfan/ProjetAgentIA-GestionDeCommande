@@ -7,6 +7,9 @@ Le projet met volontairement en évidence la séparation entre interprétation p
 
 
 ```text
+      UI
+       | "Je veux 3 lampes à 10€ pièce"
+       v  
    HTTP POST /orders
        |
        | { "text": "Je veux 3 lampes à 10€ pièce" } 
