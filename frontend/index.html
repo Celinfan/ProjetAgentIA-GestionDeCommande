@@ -13,16 +13,29 @@
         <main class="container">
             <h1>Gestion de commande</h1>
 
-            <p class="intro">
-            Passez votre commande auprès de notre assistant.
-            </p>
+            <p class="intro">Passez votre commande auprès de notre assistant.</p>
+
+            <!-- Conversation -->
+            <section class="conversation-section">
+
+                <h2>Conversation</h2>
+
+                <div id="conversation" class="conversation">
+
+                    <div class="message assistant-message">
+                        <strong>Assistant :</strong>
+                        <span>
+                            Bonjour ! Que souhaitez-vous commander ?
+                        </span>
+                    </div>
+
+                </div>
+            </section>
 
             <form id="order-form">
                 <div class="form-group">
-
-                    <label for="message">
-                        Votre demande
-                    </label>
+                    <br/>
+                    <label for="message">Votre demande</label>
 
                     <textarea
                         id="message"
@@ -32,18 +45,24 @@
                         required
                     ></textarea>
                 </div>
-                <button type="submit">
+                <button type="submit" id="submit-button">
                     Passer la commande
                 </button>
             </form>
 
-            <section class="response-section">
+            <div id="typing-indicator" class="typing-indicator" hidden>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span>Assistant en train de réfléchir...</span>
+            </div>
 
-                <h2>Réponse de l'assistant</h2>
+            <!-- Résultat final -->
+            <section  id="order-result" class="response-section" hidden>
 
-                <div id="response">
-                    Votre commande apparaîtra ici.
-                </div>
+                <h2>Commande - Réponse de l'assistant</h2>
+
+                <div id="response">Votre commande apparaîtra ici.</div>
 
             </section>
         </main>

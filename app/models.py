@@ -1,3 +1,4 @@
+# validation Pydantic
 from pydantic import BaseModel, EmailStr, Field
 
 class Product(BaseModel):
@@ -5,6 +6,7 @@ class Product(BaseModel):
     name: str = Field(min_length=1)
     unit_price: float = Field(gt=0)
     quantity: int = Field(gt=0)
+
 
 class Order(BaseModel):
     id: int = Field(ge=1)
@@ -14,4 +16,26 @@ class Order(BaseModel):
 
     @property
     def total(self) -> float:
-        return sum(p.unit_price * p.quantity for p in self.products)
+        return sum(
+            product.unit_price * product.quantity
+            for product in self.products
+        )
+    
+class OrderProduct(BaseModel):
+    """
+    État courant du produit.
+    Contrairement à Product, cet objet peut être incomplet.
+    """
+    name: str | None = None
+    unit_price: float | None = Field(default=None, gt=0)
+    quantity: int | None = Field(default=None, gt=0)
+
+
+class OrderState(BaseModel):
+    """
+    État courant de la commande.
+    Contrairement à Order, cet objet peut être incomplet.
+    """
+    customer: str | None = None
+    email: EmailStr | None = None
+    products: list[OrderProduct] = Field(default_factory=list)
