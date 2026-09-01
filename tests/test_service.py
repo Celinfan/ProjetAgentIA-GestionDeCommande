@@ -1,125 +1,135 @@
 import pytest
+
+from app.conversation import ConversationMemory
+from app.service import OrderService
+
 from app.models import Order, Product
-from app.service import OrderService, Action
 
 class FakeLLM:
-    def __init__(self, data): 
-        self.data = data
-    def extract_order(self, text): 
-        return self.data
-    
-class BrokenLLM:
-    def extract_order(self, text):
-        raise RuntimeError("LLM offline")
+    """LLM simulé pour les tests du service."""
 
-def make_order(total: float) -> dict:
-    return {
-        "id": 1,
-        "customer": "Alice",
-        "email": "alice@example.com",
-        "products": [{
-            "id": 1,
-            "name": "Produit test",
-            "unit_price": total,
-            "quantity": 1,
-        }],
-    }
+    def __init__(self, decision: dict) -> None: 
+        self.decision = decision
 
-def order(total):
-    return Order(
-        id=1,
-        customer="Alice",
-        email="alice@example.com",
-        products=[Product(id=1,name="Lamp",unit_price=total,quantity=1)]
+    def decide( 
+            self, 
+            messages: list[dict[str, str]], 
+            order_state: dict, 
+            expected_field: str | None = None, 
+    ) -> dict: 
+        return self.decision
+
+def make_service(decision: dict) -> OrderService: 
+    """Crée un service utilisant un LLM simulé.""" 
+    memory = ConversationMemory() 
+    return OrderService( 
+        llm=FakeLLM(decision), 
+        memory=memory,
     )
 
-# ---------------------------------------------------------
-# 1. Les règles métier sont déterministes
-# ---------------------------------------------------------
+def test_customer_and_email_are_saved() -> None: 
+    decision = { 
+        "actions": [ 
+            { 
+                "action": "SET_CUSTOMER", 
+                "customer": "Alice", 
+            }, 
+            { 
+                "action": "SET_EMAIL", 
+                "email": "alice@example.com", 
+            }, 
+        ]
+    } 
+    service = make_service(decision) 
 
-@pytest.mark.parametrize(
-    ("total", "expected"),
-    [
-        (10, Action.REJECT_ORDER),
-        (20, Action.SEND_CONFIRMATION_EMAIL),
-        (100, Action.SEND_CONFIRMATION_EMAIL),
-        (500, Action.SEND_CONFIRMATION_EMAIL),
-        (501, Action.SEND_SUPPLIER_EMAIL),
-        (3000, Action.SEND_SUPPLIER_EMAIL),
-    ],
-)
-def test_business_rules_are_deterministic(total, expected):
-    service = OrderService(FakeLLM(make_order(total)))
+    result = service.process_message( "Je suis Alice, alice@example.com" ) 
+    assert result["status"] == "NEED_INFORMATION" 
+    assert result["order"]["customer"] == "Alice" 
+    assert result["order"]["email"] == "alice@example.com"
 
-    result = service.process_text("n'importe quelle demande")
+def test_product_is_added() -> None: 
+    decision = { 
+        "actions": [ 
+            { 
+                "action": "SET_CUSTOMER", 
+                "customer": "Alice", 
+            }, 
+            { 
+                "action": "SET_EMAIL", 
+                "email": "alice@example.com", 
+            }, 
+            { 
+                "action": "ADD_PRODUCT", 
+                "name": "Lampes", 
+                "unit_price": 10, "quantity": 3, 
+            }, 
+        ] 
+    } 
+    service = make_service(decision) 
 
-    assert result["action"] == expected.value
-    assert result["total"] == total
+    result = service.process_message( "Je commande 3 lampes à 10 euros." ) 
+    assert result["status"] == "accepted" 
+    assert result["total"] == 30.0 
+    assert result["action"] == "SEND_CONFIRMATION_EMAIL"
 
+@pytest.mark.parametrize( 
+    ("unit_price", "quantity", "expected_status", "expected_action"), 
+    [ 
+        (10, 1, "rejected", "REJECT_ORDER"), 
+        (20, 1, "accepted", "SEND_CONFIRMATION_EMAIL"), 
+        (100, 1, "accepted", "SEND_CONFIRMATION_EMAIL"), 
+        (500, 1, "accepted", "SEND_CONFIRMATION_EMAIL"), 
+        (501, 1, "accepted", "SEND_SUPPLIER_EMAIL"), 
+    ], 
+) 
+def test_business_rules( 
+    unit_price: float, 
+    quantity: int, 
+    expected_status: str, 
+    expected_action: str, 
+) -> None: 
+    decision = { 
+        "actions": [ 
+            { 
+                "action": "SET_CUSTOMER", 
+                "customer": "Alice", 
+            }, 
+            { 
+                "action": "SET_EMAIL", 
+                "email": "alice@example.com", 
+            }, 
+            { 
+                "action": "ADD_PRODUCT", 
+                "name": "Produit test", 
+                "unit_price": unit_price, 
+                "quantity": quantity, 
+            },
+        ] 
+    } 
+    service = make_service(decision) 
 
-# ---------------------------------------------------------
-# 2. Une commande invalide est rejetée par Pydantic
-# ---------------------------------------------------------
+    result = service.process_message("Commande test") 
+    assert result["status"] == expected_status 
+    assert result["action"] == expected_action 
+    assert result["total"] == unit_price * quantity 
 
-def test_invalid_order_is_rejected_by_validation():
-    bad_order = make_order(30)
-    bad_order["email"] = "pas-un-email"
+def test_invalid_email_is_rejected() -> None: 
+    decision = { 
+        "actions": [ 
+            { 
+                "action": "SET_CUSTOMER", 
+                "customer": "Alice",
+            }, 
+            { 
+                "action": "SET_EMAIL", 
+                "email": "pas-un-email", 
+            }, 
+        ] 
+    } 
+    service = make_service(decision) 
 
-    service = OrderService(FakeLLM(bad_order))
-
-    with pytest.raises(Exception):
-        service.process_text("commande invalide")
-
-
-# ---------------------------------------------------------
-# 3. Le LLM extrait les données,
-#    mais ne décide pas de l'action métier
-# ---------------------------------------------------------
-
-def test_llm_only_extracts_data():
-    service = OrderService(FakeLLM(make_order(3000)))
-
-    result = service.process_text("commande quelconque")
-
-    assert result["total"] == 3000
-    assert result["action"] == Action.SEND_SUPPLIER_EMAIL.value
-
-
-# ---------------------------------------------------------
-# 4. Une commande classique est acceptée
-# ---------------------------------------------------------
-
-def test_standard_order_is_accepted():
-    service = OrderService(FakeLLM(make_order(100)))
-
-    result = service.process_text("commande quelconque")
-
-    assert result["status"] == "accepted"
-    assert result["action"] == Action.SEND_CONFIRMATION_EMAIL.value
-
-
-# ---------------------------------------------------------
-# 5. Une commande trop faible est rejetée
-# ---------------------------------------------------------
-
-def test_small_order_is_rejected():
-    service = OrderService(FakeLLM(make_order(10)))
-
-    result = service.process_text("commande quelconque")
-
-    assert result["status"] == "rejected"
-    assert result["action"] == Action.REJECT_ORDER.value
-
-
-# ---------------------------------------------------------
-# 6. Le LLM peut être remplacé par un Fake
-# ---------------------------------------------------------
-
-def test_fake_llm_is_used_to_extract_order():
-    fake = FakeLLM(make_order(3000))
-    service = OrderService(fake)
-
-    result = service.process_text("texte sans importance")
-
-    assert result["customer"] == "Alice"
-    assert result["total"] == 3000
+    result = service.process_message("Alice, pas-un-email") 
+    assert result["status"] == "NEED_INFORMATION" 
+    assert result["order"]["customer"] == "Alice" 
+    assert result["order"]["email"] is None
+  
