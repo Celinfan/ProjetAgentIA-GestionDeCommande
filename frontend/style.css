@@ -25,9 +25,9 @@ h1 {
 }
 
 .intro {
+    margin-bottom: 30px;
     text-align: center;
     color: #666;
-    margin-bottom: 30px;
 }
 
 .form-group {
@@ -47,6 +47,7 @@ textarea
     border: 1px solid #ccc;
     border-radius: 6px;
     font-size: 16px;
+    resize: vertical;
 }
 
 textarea:focus {
@@ -67,6 +68,11 @@ button {
 
 button:hover {
     background-color: #444;
+}
+
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 .response-section {
@@ -118,7 +124,9 @@ button:hover {
 }
 
 @keyframes typing {
-    0%, 60%, 100% {
+    0%, 
+    60%, 
+    100% {
         transform: translateY(0);
         opacity: 0.4;
     }

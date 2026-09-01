@@ -5,7 +5,6 @@ class ConversationMemory:
     """Stocke temporairement les messages des conversations en mémoire."""
 
     def __init__(self):
-        """Initialise le dictionnaire des conversations."""
         self._conversations: dict[str, list[dict[str, str]]] = {}
 
     def create(self) -> str:
@@ -18,7 +17,12 @@ class ConversationMemory:
         """Retourne l'historique d'une conversation."""
         return self._conversations.get(conversation_id, [])
 
-    def add_message(self, conversation_id: str, role: str, content: str) -> None:
+    def add_message(
+        self,
+        conversation_id: str,
+        role: str,
+        content: str,
+    ) -> None:
         """Ajoute un message à une conversation."""
         if conversation_id not in self._conversations:
             self._conversations[conversation_id] = []

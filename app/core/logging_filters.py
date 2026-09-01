@@ -5,6 +5,9 @@ from contextvars import ContextVar
 request_id_ctx: ContextVar[str] = ContextVar("request_id", default="no-request-id")
 
 class RequestIdFilter(logging.Filter):
-    def filter(self, record):
+    """Ajoute le request_id courant à chaque LogRecord."""
+
+    def filter(self, record) -> bool: 
+        """Ajoute le request_id au record de log."""
         record.request_id = request_id_ctx.get()
         return True

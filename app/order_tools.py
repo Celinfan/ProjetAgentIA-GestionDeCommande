@@ -1,14 +1,13 @@
-# actions que l'agent peut demander
 import re
 from app.order_state import OrderStateManager
 
 
-class OrderTools:
+class OrderTools:   
+    """Expose les actions métier utilisables par l'agent."""
 
-    def __init__(
-        self,
-        state_manager: OrderStateManager,
-    ):
+    EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+    def __init__(self,state_manager: OrderStateManager):
         self.state_manager = state_manager
 
     def set_customer(
@@ -16,7 +15,7 @@ class OrderTools:
         conversation_id: str,
         customer: str,
     ) -> dict:
-
+        """Définit le client de la commande."""
         self.state_manager.set_customer(
             conversation_id,
             customer,
@@ -33,7 +32,7 @@ class OrderTools:
         conversation_id: str,
         email: str,
     ) -> dict:
-
+        """Définit l'adresse email du client."""
         if not self._is_valid_email(email):
             return {
                 "success": False,
@@ -58,7 +57,7 @@ class OrderTools:
         unit_price: float,
         quantity: int,
     ) -> dict:
-
+        """Ajoute un produit à la commande."""
         if quantity <= 0:
             return {
                 "success": False,
@@ -87,22 +86,19 @@ class OrderTools:
             },
         }
 
-    def get_order_state(
-        self,
-        conversation_id: str,
-    ) -> dict:
-
-        state = self.state_manager.get_state(
-            conversation_id
-        )
+    def get_order_state(self,conversation_id: str) -> dict:
+        """Retourne l'état courant d'une commande."""
+        state = self.state_manager.get_state(conversation_id)
 
         return state.model_dump()
 
-    @staticmethod
-    def _is_valid_email(email: str) -> bool:
-
-        pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
-
-        return bool(
-            re.match(pattern, email)
-        )
+    @classmethod
+    def _is_valid_email(cls, email: str) -> bool:
+        """Vérifie sommairement le format d'une adresse email."""
+        return bool(cls.EMAIL_PATTERN.match(email))
+        #----------------------------------------------------------------
+        # EmailStr côté Pydantic, constitue une validation plus sérieuse.
+        # 
+        # À terme, il faudrait même supprimer _is_valid_email() 
+        # et laisser Pydantic être la source de vérité
+        #----------------------------------------------------------------

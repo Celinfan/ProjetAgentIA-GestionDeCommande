@@ -1,26 +1,31 @@
-# état courant de la commande
 from app.models import OrderState, OrderProduct
 
 
 class OrderStateManager:
+    """Gère l'état courant des commandes en mémoire."""
 
     def __init__(self):
         """ 
-        Ici le dictionnaire est en mémoire, c'est volontaire pour ce projet.
-        Plus une véritable application il faudra remplacer par un stockage persistant ou partagé
-        par exemple : SQLite, PostgreSQL, Redis
+        Initialise le stockage des états.
+
+        Le stockage est volontairement en mémoire pour ce projet.
+        En production, il pourra être remplacé par une base de données
+        ou un stockage partagé comme PostgreSQL ou Redis
         
-        Le principe fondammental du gestionnaire d'état, mais l'implémentation du stockage changera.
+        Le principe fondammental du gestionnaire d'état retera,
+        mais l'implémentation du stockage changera.
         """
         self.states: dict[str, OrderState] = {} 
 
     def create(self, conversation_id: str) -> OrderState:
+        """Crée un état de commande."""
         state = OrderState()
         self.states[conversation_id] = state
+
         return state
 
     def get(self, conversation_id: str) -> OrderState:
-
+        """Retourne l'état d'une commande."""
         if conversation_id not in self.states:
             return self.create(conversation_id)
 
@@ -30,7 +35,8 @@ class OrderStateManager:
         self,
         conversation_id: str,
         customer: str,
-    ):
+    ) -> None:
+        """Définit le nom du client."""
         state = self.get(conversation_id)
         state.customer = customer
 
@@ -38,7 +44,8 @@ class OrderStateManager:
         self,
         conversation_id: str,
         email: str,
-    ):
+    ) -> None:
+        """Définit l'adresse email du client."""
         state = self.get(conversation_id)
         state.email = email
 
@@ -48,7 +55,8 @@ class OrderStateManager:
         name: str,
         unit_price: float,
         quantity: int,
-    ):
+    ) -> None:
+        """Ajoute un produit à la commande."""
         state = self.get(conversation_id)
 
         product = OrderProduct(
@@ -59,11 +67,8 @@ class OrderStateManager:
 
         state.products.append(product)
 
-    def is_complete(
-        self,
-        conversation_id: str,
-    ) -> bool:
-
+    def is_complete(self, conversation_id: str) -> bool:
+        """Indique si la commande contient toutes les informations."""
         state = self.get(conversation_id)
 
         if state.customer is None:
@@ -75,19 +80,13 @@ class OrderStateManager:
         if not state.products:
             return False
 
-        for product in state.products:
-            if product.name is None:
-                return False
-            if product.unit_price is None:
-                return False
-            if product.quantity is None:
-                return False
+        return all(
+            product.name is not None
+            and product.unit_price is not None
+            and product.quantity is not None
+            for product in state.products
+        )
 
-        return True
-
-    def get_state(
-        self,
-        conversation_id: str,
-    ) -> OrderState:
-
+    def get_state(self, conversation_id: str) -> OrderState:
+        """Retourne l'état courant d'une commande."""
         return self.get(conversation_id)

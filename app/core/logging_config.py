@@ -1,24 +1,8 @@
 from logging.config import dictConfig
-from app.core.settings import settings
+from pathlib import Path
+
 from app.core.logging_filters import RequestIdFilter
-
-# initialisation avec les variables d'environnement
-settings.debug
-
-"""
-LOGGING_CONFIG paramètre :
-Niveau log    |   Console    |   Fichier
-DEBUG	      |   ❌ non    |   ✅ oui
-INFO	      |   ✅ oui    |   ✅ oui
-WARNING+	  |   ✅ oui    |   ✅ oui
-
-à inverser en prod (INFO fichier, WARNING console par ex)
-
-utiliser : logging.config.dictConfig(LOGGING_CONFIG) 
-( mais ❌ IL NE FAUT PAS appeler logging.basicConfig() en même temps sinon résultats imprévisibles !)
-basicConfig = rapide, jetable, pédagogique -> pas en entreprise !!!
-dictConfig = config sérieuse, pro, maîtrisée
-"""
+from app.core.settings import settings
 
 LOGGING_CONFIG = {
     "version": 1,
@@ -64,9 +48,11 @@ LOGGING_CONFIG = {
 
 
 def setup_logging() -> None:
-    """
-    Configure le logging global de l'application
-    """
+    """ Configure le système de logging global de l'application"""
+    log_file = Path(settings.LOG_FILE)
+    log_file.parent.mkdir(parents=True, exist_ok=True) 
+    #Évite que RotatingFileHandler échoue au démarrage si logs/ n'existe pas.
+
     dictConfig(LOGGING_CONFIG)
 
 

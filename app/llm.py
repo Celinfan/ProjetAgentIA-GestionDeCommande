@@ -1,15 +1,14 @@
-# Communication avec Ollama
-
-from abc import ABC, abstractmethod
 import json
-import urllib.request
 import logging
+import urllib.request
+from abc import ABC, abstractmethod
 
 
-logger = logging.getLogger("LLM")
+logger = logging.getLogger(__name__)
 
 
 class LLM(ABC):
+    """Interface commune pour les modèles de langage."""
 
     @abstractmethod
     def decide(
@@ -18,29 +17,28 @@ class LLM(ABC):
         order_state: dict,
         expected_field: str | None = None,
     ) -> dict:
+        """Retourne la décision produite par le LLM."""
         raise NotImplementedError
 
 
 class OllamaLLM(LLM):
+    """Implémentation LLM utilisant l'API Ollama."""
+
+    DEFAULT_MODEL = "qwen2.5:3b-instruct"
+    DEFAULT_BASE_URL = "http://localhost:11434"
+    REQUEST_TIMEOUT = 60
 
     def __init__(
         self,
-        model="qwen2.5:3b-instruct",
-        base_url="http://localhost:11434",
-    ):
+        model: str = DEFAULT_MODEL,
+        base_url: str = DEFAULT_BASE_URL,
+    ) -> None:
         self.model = model
         self.url = f"{base_url.rstrip('/')}/api/chat"
 
-    # =========================================================
-    # Appel générique Ollama
-    # =========================================================
-
     def _call_ollama(self, prompt: str) -> dict:
-
-        logger.debug(
-            "Prompt spécialisé envoyé à Ollama :\n%s",
-            prompt,
-        )
+        """Envoie un prompt à Ollama et retourne le JSON produit."""
+        logger.debug("Prompt spécialisé envoyé à Ollama :\n%s",prompt)
 
         payload = json.dumps(
             {
@@ -67,37 +65,22 @@ class OllamaLLM(LLM):
 
         with urllib.request.urlopen(
             request,
-            timeout=60,
+            timeout=self.REQUEST_TIMEOUT,
         ) as response:
 
             raw_response = response.read().decode("utf-8")
 
-        logger.debug(
-            "Réponse brute Ollama : %s",
-            raw_response,
-        )
+        logger.debug("Réponse brute Ollama : %s",raw_response)
 
         result = json.loads(raw_response)
-
         content = result["message"]["content"]
-
-        logger.debug(
-            "Contenu retourné par Ollama : %s",
-            content,
-        )
+        logger.debug("Contenu retourné par Ollama : %s", content)
 
         data = json.loads(content)
-
-        logger.debug(
-            "JSON spécialisé extrait : %s",
-            data,
-        )
+        logger.debug("JSON spécialisé extrait : %s", data)
 
         return data
 
-    # =========================================================
-    # Décision principale
-    # =========================================================
 
     def decide(
         self,
@@ -105,55 +88,31 @@ class OllamaLLM(LLM):
         order_state: dict,
         expected_field: str | None = None,
     ) -> dict:
+        """Extrait les informations et construit les actions."""
+        logger.debug("État transmis au LLM : %s", order_state)
+        logger.debug("Champ attendu : %s", expected_field)
 
-        logger.debug(
-            "État transmis au LLM : %s",
-            order_state,
-        )
-
-        logger.debug(
-            "Champ attendu : %s",
-            expected_field,
-        )
-
-        # -----------------------------------------------------
         # Première passe : informations client
-        # -----------------------------------------------------
-
         client_result = self._extract_customer_information(
             messages=messages,
             order_state=order_state,
             expected_field=expected_field,
         )
 
-        # -----------------------------------------------------
         # Deuxième passe : produit
-        # -----------------------------------------------------
-
         product_result = self._extract_product_information(
             messages=messages,
             order_state=order_state,
             expected_field=expected_field,
         )
 
-        logger.debug(
-            "Résultat extraction CLIENT : %s",
-            client_result,
-        )
+        logger.debug("Résultat extraction CLIENT : %s", client_result)
+        logger.debug("Résultat extraction PRODUIT : %s", product_result)
 
-        logger.debug(
-            "Résultat extraction PRODUIT : %s",
-            product_result,
-        )
-
-        # -----------------------------------------------------
         # Conversion en actions
-        # -----------------------------------------------------
-
         actions = []
 
         if client_result.get("customer") is not None:
-
             actions.append(
                 {
                     "action": "SET_CUSTOMER",
@@ -162,7 +121,6 @@ class OllamaLLM(LLM):
             )
 
         if client_result.get("email") is not None:
-
             actions.append(
                 {
                     "action": "SET_EMAIL",
@@ -170,21 +128,17 @@ class OllamaLLM(LLM):
                 }
             )
 
-        if product_result.get("product") is not None:
-
-            product = product_result["product"]
-
+        product = product_result.get("product")
+        if product is not None:
             name = product.get("name")
             unit_price = product.get("unit_price")
             quantity = product.get("quantity")
 
             # On ne crée l'action que si le produit est complet.
-            if (
-                name is not None
-                and unit_price is not None
-                and quantity is not None
+            if all (
+                value is not None
+                for value in (name, unit_price, quantity)
             ):
-
                 actions.append(
                     {
                         "action": "ADD_PRODUCT",
@@ -194,25 +148,11 @@ class OllamaLLM(LLM):
                     }
                 )
 
-        logger.debug(
-            "Actions construites après fusion : %s",
-            actions,
-        )
-
-        result = {
-            "actions": actions,
-        }
-
-        logger.debug(
-            "Décision fusionnée : %s",
-            result,
-        )
+        result = {"actions": actions}
+        logger.debug("Décision fusionnée : %s", result)
 
         return result
 
-    # =========================================================
-    # Extraction client
-    # =========================================================
 
     def _extract_customer_information(
         self,
@@ -220,7 +160,7 @@ class OllamaLLM(LLM):
         order_state: dict,
         expected_field: str | None = None,
     ) -> dict:
-
+        """Extrait les informations client du dernier message."""
         messages_json = json.dumps(
             messages,
             ensure_ascii=False,
@@ -235,10 +175,7 @@ class OllamaLLM(LLM):
 
         pending_context = ""
 
-        if expected_field in {
-            "customer",
-            "email",
-        }:
+        if expected_field in {"customer", "email"}:
 
             pending_context = f"""
 
@@ -256,18 +193,20 @@ Si le dernier message répond à cette question, extrais uniquement
 la valeur réellement fournie par l'utilisateur.
 """
 
-        prompt = """
+        prompt = f"""
 Tu es un extracteur d'informations CLIENT.
 
 Tu dois analyser le DERNIER message de l'utilisateur.
 
 ÉTAT ACTUEL :
 
-""" + state_json + """
+{state_json}
 
 HISTORIQUE :
 
-""" + messages_json + pending_context + """
+{messages_json}
+
+{pending_context}
 
 Ta mission consiste UNIQUEMENT à extraire :
 
@@ -302,17 +241,14 @@ RÈGLES ABSOLUES :
 
 FORMAT OBLIGATOIRE :
 
-{
+{{
     "customer": null,
     "email": null
-}
+}}
 """.strip()
 
         return self._call_ollama(prompt)
 
-    # =========================================================
-    # Extraction produit
-    # =========================================================
 
     def _extract_product_information(
         self,
@@ -320,11 +256,10 @@ FORMAT OBLIGATOIRE :
         order_state: dict,
         expected_field: str | None = None,
     ) -> dict:
+        """Extrait un produit complet du dernier message utilisateur."""
+        del order_state
 
-        # ---------------------------------------------------------
         # On ne travaille que sur le dernier message utilisateur.
-        # ---------------------------------------------------------
-
         last_user_message = None
 
         for message in reversed(messages):
@@ -340,23 +275,17 @@ FORMAT OBLIGATOIRE :
             last_user_message,
         )
 
-        # ---------------------------------------------------------
         # Si on est en train de demander le nom ou l'email,
-        # une réponse courte ne doit pas être transformée en produit.
-        # ---------------------------------------------------------
-
+        # une réponse courte ne doit pas être transformée en produit
         if expected_field in {"customer", "email"}:
             return {"product": None}
 
-        # ---------------------------------------------------------
         # Prompt volontairement minimal.
-        # ---------------------------------------------------------
-
         prompt = """
     Tu dois extraire un produit à partir d'une phrase utilisateur.
 
     DERNIER MESSAGE UTILISATEUR :
-    """ + last_user_message + """
+    {last_user_message}
 
     Cherche ces 3 informations :
 
@@ -383,19 +312,19 @@ FORMAT OBLIGATOIRE :
 
     Si les 3 informations sont présentes, retourne exactement :
 
-    {
-        "product": {
+    {{
+        "product": {{
             "name": "lampes",
             "unit_price": 10,
             "quantity": 5
-        }
-    }
+        }}
+    }}
 
     Sinon retourne exactement :
 
-    {
+    {{
         "product": null
-    }
+    }}
 
     RÈGLES :
 
